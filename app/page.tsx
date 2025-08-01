@@ -3,9 +3,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Brain, Send, Sparkles, ArrowRight, Moon, Sun, Copy, Check, BookOpen, MessageSquare, Zap } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { TypingEffect } from '@/components/TypingEffect';
 import { SessionSidebar } from '@/components/SessionSidebar';
 import { QuickButtons } from '@/components/QuickButtons';
 import { ChatHeader } from '@/components/ChatHeader';
+import { Toast, useToast } from '@/components/Toast';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { Message, Session } from '@/types';
 
 export default function Home() {
@@ -14,6 +17,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isSessionLoading, setIsSessionLoading] = useState<boolean>(true);
   const [inputValue, setInputValue] = useState<string>('');
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -21,6 +25,9 @@ export default function Home() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Toast 훅 사용
+  const { toasts, showToast, removeToast } = useToast();
 
   // 새 세션 생성
   const createNewSession = () => {
@@ -42,6 +49,7 @@ export default function Home() {
     localStorage.setItem('sessions', JSON.stringify(updatedSessions));
     localStorage.setItem('currentSessionId', newSessionId);
     
+    showToast('새 대화를 시작합니다', 'success');
     return newSessionId;
   };
 
@@ -67,6 +75,8 @@ export default function Home() {
     // 로컬 스토리지 업데이트
     const updatedSessions = sessions.filter(s => s.id !== sessionId);
     localStorage.setItem('sessions', JSON.stringify(updatedSessions));
+    
+    showToast('대화가 삭제되었습니다', 'info');
   };
 
   // 다크모드 토글
@@ -80,33 +90,44 @@ export default function Home() {
 
   // 로컬 스토리지에서 세션 불러오기
   useEffect(() => {
-    const savedSessions = localStorage.getItem('sessions');
-    const savedCurrentSessionId = localStorage.getItem('currentSessionId');
-    const savedDarkMode = localStorage.getItem('darkMode');
-    
-    if (savedDarkMode) {
-      setDarkMode(JSON.parse(savedDarkMode));
-    }
-    
-    if (savedSessions) {
-      const parsedSessions = JSON.parse(savedSessions);
-      setSessions(parsedSessions);
+    const loadSessions = async () => {
+      setIsSessionLoading(true);
       
-      if (savedCurrentSessionId && parsedSessions.find((s: Session) => s.id === savedCurrentSessionId)) {
-        setCurrentSessionId(savedCurrentSessionId);
-        const currentSession = parsedSessions.find((s: Session) => s.id === savedCurrentSessionId);
-        if (currentSession) {
-          setMessages(currentSession.messages);
+      // 약간의 지연으로 로딩 효과 보여주기
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const savedSessions = localStorage.getItem('sessions');
+      const savedCurrentSessionId = localStorage.getItem('currentSessionId');
+      const savedDarkMode = localStorage.getItem('darkMode');
+      
+      if (savedDarkMode) {
+        setDarkMode(JSON.parse(savedDarkMode));
+      }
+      
+      if (savedSessions) {
+        const parsedSessions = JSON.parse(savedSessions);
+        setSessions(parsedSessions);
+        
+        if (savedCurrentSessionId && parsedSessions.find((s: Session) => s.id === savedCurrentSessionId)) {
+          setCurrentSessionId(savedCurrentSessionId);
+          const currentSession = parsedSessions.find((s: Session) => s.id === savedCurrentSessionId);
+          if (currentSession) {
+            setMessages(currentSession.messages);
+          }
+        } else if (parsedSessions.length > 0) {
+          setCurrentSessionId(parsedSessions[0].id);
+          setMessages(parsedSessions[0].messages);
+        } else {
+          createNewSession();
         }
-      } else if (parsedSessions.length > 0) {
-        setCurrentSessionId(parsedSessions[0].id);
-        setMessages(parsedSessions[0].messages);
       } else {
         createNewSession();
       }
-    } else {
-      createNewSession();
-    }
+      
+      setIsSessionLoading(false);
+    };
+    
+    loadSessions();
   }, []);
 
   // 메시지 변경시 현재 세션 업데이트
@@ -188,11 +209,16 @@ export default function Home() {
         },
         body: JSON.stringify({
           message: question,
-          conversationId: currentSessionId
+          conversationId: currentSessionId,
+          messages: [...messages, userMessage]  // 현재까지의 모든 메시지 전송
         })
       });
 
       const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || '응답 실패');
+      }
       
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
@@ -205,6 +231,7 @@ export default function Home() {
 
     } catch (error) {
       console.error('Error:', error);
+      showToast('연결에 문제가 있습니다. 다시 시도해주세요.', 'error');
       
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
@@ -232,8 +259,10 @@ export default function Home() {
       await navigator.clipboard.writeText(text);
       setCopiedId(messageId);
       setTimeout(() => setCopiedId(null), 2000);
+      showToast('클립보드에 복사되었습니다', 'success');
     } catch (err) {
       console.error('Failed to copy:', err);
+      showToast('복사에 실패했습니다', 'error');
     }
   };
 
@@ -248,6 +277,8 @@ export default function Home() {
     a.href = url;
     a.download = `secondbrain-chat-${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
+    
+    showToast('대화 내용이 다운로드되었습니다', 'success');
   };
 
   const clearChat = () => {
@@ -260,6 +291,7 @@ export default function Home() {
       );
       setSessions(updatedSessions);
       localStorage.setItem('sessions', JSON.stringify(updatedSessions));
+      showToast('대화가 초기화되었습니다', 'info');
     }
   };
 
@@ -267,7 +299,7 @@ export default function Home() {
   if (currentView === 'landing') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-white dark:from-gray-900 dark:via-purple-950 dark:to-gray-900 transition-colors duration-300">
-        <nav className="px-6 py-6">
+        <nav className="px-6 py-6 animate-slide-down">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Brain className="w-8 h-8 text-purple-600 dark:text-purple-400" />
@@ -291,12 +323,12 @@ export default function Home() {
         </nav>
 
         <section className="px-6 py-20 max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center px-4 py-2 bg-purple-100 dark:bg-purple-900/30 rounded-full border border-purple-200 dark:border-purple-800 mb-6">
+          <div className="inline-flex items-center px-4 py-2 bg-purple-100 dark:bg-purple-900/30 rounded-full border border-purple-200 dark:border-purple-800 mb-6 animate-fade-in">
             <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-2" />
             <span className="text-purple-700 dark:text-purple-300 text-sm font-medium">닥터가드너 SecondBrain 전문 AI 코치</span>
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-white leading-tight mb-6">
+          <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-white leading-tight mb-6 animate-slide-up">
             Second Brain 마스터하기
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
@@ -304,7 +336,7 @@ export default function Home() {
             </span>
           </h1>
           
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8 leading-relaxed">
+          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8 leading-relaxed animate-fade-in animation-delay-200">
             PARA 분류가 헷갈리시나요? CODE 방법론이 어려우신가요?
             <br />
             실시간 AI 코치가 당신의 Second Brain 구축을 도와드립니다.
@@ -312,7 +344,7 @@ export default function Home() {
 
           <button
             onClick={() => setCurrentView('chat')}
-            className="inline-flex items-center px-8 py-4 bg-purple-600 text-white rounded-xl font-medium text-lg transition-all duration-200 hover:bg-purple-700 hover:shadow-lg hover:scale-105 active:scale-95"
+            className="inline-flex items-center px-8 py-4 bg-purple-600 text-white rounded-xl font-medium text-lg transition-all duration-200 hover:bg-purple-700 hover:shadow-lg hover:scale-105 active:scale-95 animate-fade-in animation-delay-300"
           >
             지금 시작하기
             <ArrowRight className="ml-2 w-5 h-5" />
@@ -320,19 +352,19 @@ export default function Home() {
         </section>
 
         <section className="px-6 py-20 max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105 animate-fade-in animation-delay-400">
             <MessageSquare className="w-10 h-10 text-purple-600 dark:text-purple-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">즉문즉답</h3>
             <p className="text-gray-600 dark:text-gray-400 leading-relaxed">PARA 분류, CODE 프로세스 등 궁금한 점을 바로 물어보세요</p>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105 animate-fade-in animation-delay-500">
             <BookOpen className="w-10 h-10 text-purple-600 dark:text-purple-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">실전 예시</h3>
             <p className="text-gray-600 dark:text-gray-400 leading-relaxed">당신의 상황에 맞는 구체적인 예시와 템플릿을 제공합니다</p>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105 animate-fade-in animation-delay-600">
             <Zap className="w-10 h-10 text-purple-600 dark:text-purple-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">실시간 피드백</h3>
             <p className="text-gray-600 dark:text-gray-400 leading-relaxed">분류가 맞는지, 더 나은 방법은 없는지 즉시 확인하세요</p>
@@ -345,6 +377,18 @@ export default function Home() {
   // 채팅 인터페이스
   return (
     <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col transition-colors duration-300">
+      {/* Toast 컨테이너 */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map(toast => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
+
       {/* 헤더 */}
       <ChatHeader
         darkMode={darkMode}
@@ -358,21 +402,27 @@ export default function Home() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* 사이드바 */}
-        <SessionSidebar
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          showSidebar={showSidebar}
-          onNewSession={createNewSession}
-          onSwitchSession={switchSession}
-          onDeleteSession={deleteSession}
-        />
+        {isSessionLoading ? (
+          <div className={`${showSidebar ? 'w-64' : 'w-0'} bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4 space-y-2`}>
+            <SkeletonLoader type="sidebar" count={5} />
+          </div>
+        ) : (
+          <SessionSidebar
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            showSidebar={showSidebar}
+            onNewSession={createNewSession}
+            onSwitchSession={switchSession}
+            onDeleteSession={deleteSession}
+          />
+        )}
 
         {/* 메시지 영역 */}
         <div className="flex-1 overflow-hidden flex flex-col">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto p-4">
               <div className="space-y-6">
-                {messages.map((message) => (
+                {messages.map((message, index) => (
                   <div key={message.id} className="animate-fade-in">
                     <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`group max-w-[85%] md:max-w-[70%] ${
@@ -397,42 +447,50 @@ export default function Home() {
                             </span>
                           </div>
                           {message.type === 'bot' ? (
-                            <MarkdownRenderer content={message.content} />
+                            <TypingEffect 
+                              content={message.content}
+                              isTyping={index === messages.length - 1 && !message.cached}
+                              speed={20}
+                            />
                           ) : (
-                            <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                            <p className="whitespace-pre-wrap leading-relaxed select-text cursor-text">{message.content}</p>
                           )}
                         </div>
                         
-                        {message.type === 'bot' && (
-                          <div className="px-4 pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => copyToClipboard(message.content, message.id)}
-                              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center"
-                            >
-                              {copiedId === message.id ? (
-                                <>
-                                  <Check className="w-3 h-3 mr-1" />
-                                  복사됨
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3 h-3 mr-1" />
-                                  복사
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
+                        {/* 복사 버튼 - 모든 메시지에 표시 */}
+                        <div className="px-4 pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => copyToClipboard(message.content, message.id)}
+                            className={`text-xs ${
+                              message.type === 'user' 
+                                ? 'text-purple-300 hover:text-purple-200' 
+                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                            } flex items-center`}
+                          >
+                            {copiedId === message.id ? (
+                              <>
+                                <Check className="w-3 h-3 mr-1" />
+                                복사됨
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 mr-1" />
+                                복사
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
                     
                     {message.suggestions && (
-                      <div className="flex flex-wrap gap-2 mt-3 px-4">
+                      <div className="flex flex-wrap gap-2 mt-3 px-4 animate-fade-in">
                         {message.suggestions.map((suggestion, i) => (
                           <button
                             key={i}
                             onClick={() => handleSuggestionClick(suggestion)}
                             className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-xl text-sm font-medium transition-all hover:scale-105 active:scale-95"
+                            disabled={isLoading}
                           >
                             {suggestion}
                           </button>
@@ -479,7 +537,6 @@ export default function Home() {
                   }}
                   placeholder="질문을 입력하세요..."
                   className="w-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
-                  disabled={isLoading}
                 />
                 <button
                   onClick={handleSend}

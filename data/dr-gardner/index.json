@@ -1,0 +1,147 @@
+{
+  "dr-gardner-knowledge-base": {
+    "version": "1.0",
+    "lastUpdated": "2024-01",
+    "description": "닥터가드너 세컨드브레인 OS 완전 지식 데이터베이스",
+    "structure": {
+      "core-concepts": {
+        "file": "core-concepts.json",
+        "topics": ["철학", "구조", "원칙"],
+        "priority": 1
+      },
+      "para-system": {
+        "file": "para-system.json",
+        "topics": ["PARA", "분류법", "정보관리"],
+        "priority": 2
+      },
+      "code-method": {
+        "file": "code-method.json",
+        "topics": ["CODE", "운영방법", "일일루틴"],
+        "priority": 3
+      },
+      "notion-setup": {
+        "file": "notion-setup.json", 
+        "topics": ["설정", "구현", "페이지활용"],
+        "priority": 4
+      },
+      "automation": {
+        "file": "automation.json",
+        "topics": ["버튼", "자동화", "캘린더"],
+        "priority": 5
+      },
+      "troubleshooting": {
+        "file": "troubleshooting.json",
+        "topics": ["문제해결", "최적화", "마이그레이션"],
+        "priority": 6
+      }
+    },
+    "learningPaths": {
+      "beginner": {
+        "name": "초보자 코스",
+        "duration": "2-3주",
+        "sequence": [
+          "core-concepts.philosophy",
+          "para-system.overview",
+          "notion-setup.initial-setup",
+          "code-method.capture-detailed",
+          "code-method.daily-workflow"
+        ]
+      },
+      "intermediate": {
+        "name": "중급자 코스",
+        "duration": "2-3주",
+        "sequence": [
+          "code-method.distill-detailed",
+          "notion-setup.page-functions",
+          "automation.quick-capture-button",
+          "automation.side-panel-button",
+          "troubleshooting.system-optimization"
+        ]
+      },
+      "advanced": {
+        "name": "고급자 코스",
+        "duration": "1-2주",
+        "sequence": [
+          "automation.routine-project-button",
+          "automation.batch-edit-button",
+          "notion-setup.advanced-features",
+          "troubleshooting.performance-tips"
+        ]
+      }
+    },
+    "quickReference": {
+      "mostAsked": [
+        {
+          "q": "영역과 자원의 차이는?",
+          "ref": "para-system.areas-guide"
+        },
+        {
+          "q": "수집함이 계속 쌓여요",
+          "ref": "troubleshooting.specific-problems"
+        },
+        {
+          "q": "버튼 만드는 법",
+          "ref": "automation.quick-capture-button"
+        },
+        {
+          "q": "프로젝트 크기는?",
+          "ref": "para-system.projects-guide"
+        },
+        {
+          "q": "노트 원자성이란?",
+          "ref": "code-method.distill-detailed"
+        }
+      ],
+      "essentialConcepts": [
+        "실행 중심 시스템",
+        "할일-지식 연동",
+        "2분 규칙",
+        "아카이브에서 시작",
+        "노트 원자성"
+      ],
+      "commonMistakes": [
+        "수집 시 분류",
+        "모든 것을 프로젝트로",
+        "영역 세분화",
+        "아카이브 방치"
+      ]
+    },
+    "updates": {
+      "2408": {
+        "name": "대시보드 업데이트",
+        "changes": ["PARA 대시보드 추가", "수식 개선"]
+      },
+      "256": {
+        "name": "버튼 업데이트", 
+        "changes": ["19개 버튼 템플릿", "루틴 자동화"]
+      },
+      "notion-calendar": {
+        "name": "캘린더 베타",
+        "status": "테스트 중",
+        "issues": ["동기화 불안정", "확인용으로만 사용"]
+      }
+    },
+    "keywords": {
+      "high-frequency": [
+        "세컨드브레인", "PARA", "CODE", "GTD",
+        "할일관리", "지식관리", "노션템플릿",
+        "프로젝트", "영역", "자원", "아카이브",
+        "수집", "명료화", "버튼", "자동화"
+      ],
+      "concepts": [
+        "실행도", "책임유무", "종료일", "원자성",
+        "중간작업물", "세렌디피티", "레버리지",
+        "2분규칙", "타임블로킹", "하이라이트"
+      ],
+      "problems": [
+        "수집함쌓임", "프로젝트구분", "노트찾기",
+        "시스템복잡", "성능저하", "마이그레이션"
+      ]
+    },
+    "support": {
+      "official": "네이버 카페",
+      "youtube": "닥터가드너 채널",
+      "template": "링크 참조"
+    }
+  }
+}

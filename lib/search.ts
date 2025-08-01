@@ -9,9 +9,13 @@ interface KnowledgeItem {
   keywords: string[];
   examples?: string[];
   relatedTopics?: string[];
+  tags?: string[];
+  type?: string;
+  keyPoints?: string[];
+  summary?: string;
 }
 
-// 기본 지식 베이스 (detailed-knowledge.json이 없을 경우를 대비)
+// 기본 지식 베이스 (기존 코드 유지)
 const defaultKnowledge: KnowledgeItem[] = [
   {
     id: "para-basic",
@@ -57,11 +61,45 @@ const defaultKnowledge: KnowledgeItem[] = [
   }
 ];
 
+// 닥터가드너 데이터를 평면화하는 함수
+function flattenDrGardnerData(data: any): KnowledgeItem[] {
+  const flattened: KnowledgeItem[] = [];
+  
+  Object.entries(data).forEach(([key, value]: [string, any]) => {
+    if (value && typeof value === 'object') {
+      // keywords 배열 생성 (tags와 keyPoints 결합)
+      const keywords = [
+        ...(value.tags || []),
+        ...(value.keyPoints || []),
+        value.title || ''
+      ].filter(Boolean);
+      
+      flattened.push({
+        id: value.id || key,
+        category: value.category || '닥터가드너',
+        title: value.title || key,
+        content: value.content || '',
+        keywords: keywords,
+        tags: value.tags || [],
+        type: 'dr-gardner',
+        examples: value.examples || [],
+        relatedTopics: value.relatedTopics || value.relatedQuestions || [],
+        summary: value.summary || '',
+        keyPoints: value.keyPoints || [],
+        ...value
+      });
+    }
+  });
+  
+  return flattened;
+}
+
 // 지식 베이스 로드 시도
 let knowledgeItems: KnowledgeItem[] = defaultKnowledge;
+let drGardnerItems: KnowledgeItem[] = [];
 
+// 기존 detailed-knowledge.json 로드
 try {
-  // detailed-knowledge.json 파일이 있다면 로드 시도
   const detailedKnowledge = require('@/data/detailed-knowledge.json');
   if (detailedKnowledge && detailedKnowledge.items) {
     knowledgeItems = detailedKnowledge.items;
@@ -71,27 +109,56 @@ try {
   console.log('📌 기본 지식 베이스 사용 중');
 }
 
+// 닥터가드너 콘텐츠 로드
+try {
+  const drGardnerCore = require('@/data/dr-gardner/core-concepts.json');
+  const drGardnerPara = require('@/data/dr-gardner/para-system.json');
+  const drGardnerCode = require('@/data/dr-gardner/code-method.json');
+  const drGardnerNotion = require('@/data/dr-gardner/notion-setup.json');
+  const drGardnerAutomation = require('@/data/dr-gardner/automation.json');
+  const drGardnerTroubleshooting = require('@/data/dr-gardner/troubleshooting.json');
+  
+  drGardnerItems = [
+    ...flattenDrGardnerData(drGardnerCore),
+    ...flattenDrGardnerData(drGardnerPara),
+    ...flattenDrGardnerData(drGardnerCode),
+    ...flattenDrGardnerData(drGardnerNotion),
+    ...flattenDrGardnerData(drGardnerAutomation),
+    ...flattenDrGardnerData(drGardnerTroubleshooting)
+  ];
+  
+  console.log(`✅ 닥터가드너 콘텐츠 로드 성공: ${drGardnerItems.length}개 항목`);
+} catch (error) {
+  console.log('❌ 닥터가드너 콘텐츠 로드 실패:', error);
+}
+
+// 모든 지식 항목 통합
+const allKnowledgeItems = [...knowledgeItems, ...drGardnerItems];
+
 // Fuse.js 검색 옵션 설정
 const fuseOptions = {
   keys: [
     { name: 'title', weight: 0.3 },
     { name: 'content', weight: 0.4 },
-    { name: 'keywords', weight: 0.3 }
+    { name: 'keywords', weight: 0.3 },
+    { name: 'tags', weight: 0.2 },
+    { name: 'summary', weight: 0.2 }
   ],
   threshold: 0.4,
   includeScore: true,
   minMatchCharLength: 2,
   ignoreLocation: true,
-  shouldSort: true
+  shouldSort: true,
+  findAllMatches: true
 };
 
 // Fuse 인스턴스 생성
-const fuse = new Fuse(knowledgeItems, fuseOptions);
+const fuse = new Fuse(allKnowledgeItems, fuseOptions);
 
 // 한국어 처리를 위한 헬퍼 함수
 function normalizeKoreanQuery(query: string): string {
   return query
-    .replace(/[을를이가은는에서와과의]/g, ' ')
+    .replace(/[을를이가은는에서와과의로으로]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -106,27 +173,55 @@ export async function searchKnowledge(query: string) {
   console.log('📝 정규화된 쿼리:', normalizedQuery);
   
   // 검색 수행
-  const results = fuse.search(normalizedQuery);
+  let results = fuse.search(normalizedQuery);
   
-  // 건강/다이어트 관련 키워드가 있으면 관련 내용 우선 반환
+  // 닥터가드너 콘텐츠 우선 정렬
+  results = results.sort((a, b) => {
+    const aIsDrGardner = a.item.type === 'dr-gardner';
+    const bIsDrGardner = b.item.type === 'dr-gardner';
+    
+    // 닥터가드너 콘텐츠를 우선
+    if (aIsDrGardner && !bIsDrGardner) return -1;
+    if (!aIsDrGardner && bIsDrGardner) return 1;
+    
+    // 같은 타입이면 점수로 정렬
+    return (a.score || 0) - (b.score || 0);
+  });
+  
+  // 특정 키워드에 대한 우선순위 처리 (기존 로직 유지)
   if (query.match(/살|다이어트|운동|건강|체중/)) {
     const healthResults = fuse.search('건강 다이어트 운동');
     if (healthResults.length > 0) {
-      // 건강 관련 결과를 앞에 추가
       const healthIds = new Set(healthResults.map(r => r.item.id));
       const filteredResults = results.filter(r => !healthIds.has(r.item.id));
-      return [...healthResults, ...filteredResults].slice(0, 5);
+      results = [...healthResults, ...filteredResults];
     }
   }
   
+  // 세컨드브레인 관련 키워드 우선순위
+  if (query.match(/세컨드브레인|세컨브레인|second brain|템플릿/i)) {
+    const secondBrainResults = results.filter(r => 
+      r.item.type === 'dr-gardner' || 
+      r.item.category?.includes('닥터가드너')
+    );
+    const otherResults = results.filter(r => 
+      r.item.type !== 'dr-gardner' && 
+      !r.item.category?.includes('닥터가드너')
+    );
+    results = [...secondBrainResults, ...otherResults];
+  }
+  
   console.log(`✅ 검색 결과: ${results.length}개`);
-  return results.slice(0, 5); // 상위 5개 결과만 반환
+  console.log(`📊 닥터가드너 콘텐츠: ${results.filter(r => r.item.type === 'dr-gardner').length}개`);
+  
+  return results.slice(0, 10); // 상위 10개 결과 반환
 }
 
 // 카테고리별 검색 함수
 export async function searchByCategory(category: string) {
-  const categoryItems = knowledgeItems.filter(item => 
-    item.category.toLowerCase() === category.toLowerCase()
+  const categoryItems = allKnowledgeItems.filter(item => 
+    item.category.toLowerCase() === category.toLowerCase() ||
+    item.category.includes(category)
   );
   return categoryItems;
 }
@@ -143,4 +238,14 @@ export async function findRelatedTopics(currentTopic: string) {
   });
   
   return Array.from(relatedTopics);
+}
+
+// 닥터가드너 전용 검색 함수 (추가)
+export async function searchDrGardner(query: string) {
+  const drGardnerFuse = new Fuse(drGardnerItems, fuseOptions);
+  const normalizedQuery = normalizeKoreanQuery(query);
+  const results = drGardnerFuse.search(normalizedQuery);
+  
+  console.log(`🎯 닥터가드너 전용 검색 결과: ${results.length}개`);
+  return results;
 }

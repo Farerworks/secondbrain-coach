@@ -34,7 +34,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <Brain className="w-8 h-8 text-purple-600 dark:text-purple-400" />
             <div>
               <h3 className="text-gray-900 dark:text-white font-semibold">SecondBrain Coach</h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">PARA & CODE 전문가</p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Dr.Gardner System Guide • Farerworks
+              </p>
             </div>
           </div>
           <div className="flex items-center space-x-2">

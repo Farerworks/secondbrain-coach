@@ -1,4 +1,11 @@
 import Fuse from 'fuse.js';
+import detailedKnowledgeJson from '@/data/detailed-knowledge.json';
+import drGardnerCore from '@/data/dr-gardner/core-concepts.json';
+import drGardnerPara from '@/data/dr-gardner/para-system.json';
+import drGardnerCode from '@/data/dr-gardner/code-method.json';
+import drGardnerNotion from '@/data/dr-gardner/notion-setup.json';
+import drGardnerAutomation from '@/data/dr-gardner/automation.json';
+import drGardnerTroubleshooting from '@/data/dr-gardner/troubleshooting.json';
 
 // 지식 베이스 타입 정의
 interface KnowledgeItem {
@@ -98,39 +105,20 @@ function flattenDrGardnerData(data: any): KnowledgeItem[] {
 let knowledgeItems: KnowledgeItem[] = defaultKnowledge;
 let drGardnerItems: KnowledgeItem[] = [];
 
-// 기존 detailed-knowledge.json 로드
-try {
-  const detailedKnowledge = require('@/data/detailed-knowledge.json');
-  if (detailedKnowledge && detailedKnowledge.items) {
-    knowledgeItems = detailedKnowledge.items;
-    console.log('✅ detailed-knowledge.json 로드 성공');
-  }
-} catch (error) {
-  console.log('📌 기본 지식 베이스 사용 중');
+// detailed-knowledge.json 로드 (존재하면 items 사용)
+if ((detailedKnowledgeJson as any)?.items) {
+  knowledgeItems = (detailedKnowledgeJson as any).items as KnowledgeItem[];
 }
 
-// 닥터가드너 콘텐츠 로드
-try {
-  const drGardnerCore = require('@/data/dr-gardner/core-concepts.json');
-  const drGardnerPara = require('@/data/dr-gardner/para-system.json');
-  const drGardnerCode = require('@/data/dr-gardner/code-method.json');
-  const drGardnerNotion = require('@/data/dr-gardner/notion-setup.json');
-  const drGardnerAutomation = require('@/data/dr-gardner/automation.json');
-  const drGardnerTroubleshooting = require('@/data/dr-gardner/troubleshooting.json');
-  
-  drGardnerItems = [
-    ...flattenDrGardnerData(drGardnerCore),
-    ...flattenDrGardnerData(drGardnerPara),
-    ...flattenDrGardnerData(drGardnerCode),
-    ...flattenDrGardnerData(drGardnerNotion),
-    ...flattenDrGardnerData(drGardnerAutomation),
-    ...flattenDrGardnerData(drGardnerTroubleshooting)
-  ];
-  
-  console.log(`✅ 닥터가드너 콘텐츠 로드 성공: ${drGardnerItems.length}개 항목`);
-} catch (error) {
-  console.log('❌ 닥터가드너 콘텐츠 로드 실패:', error);
-}
+// 닥터가드너 콘텐츠 로드(정적 import)
+drGardnerItems = [
+  ...flattenDrGardnerData(drGardnerCore as any),
+  ...flattenDrGardnerData(drGardnerPara as any),
+  ...flattenDrGardnerData(drGardnerCode as any),
+  ...flattenDrGardnerData(drGardnerNotion as any),
+  ...flattenDrGardnerData(drGardnerAutomation as any),
+  ...flattenDrGardnerData(drGardnerTroubleshooting as any)
+];
 
 // 모든 지식 항목 통합
 const allKnowledgeItems = [...knowledgeItems, ...drGardnerItems];

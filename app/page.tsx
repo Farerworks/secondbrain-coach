@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Brain, Send, Sparkles, ArrowRight, Moon, Sun, Copy, Check, BookOpen, MessageSquare, Zap } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { TypingEffect } from '@/components/TypingEffect';
@@ -22,12 +22,32 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [showSidebar, setShowSidebar] = useState<boolean>(true);
+  // RAG 통합 상태
+  const [ragMode, setRagMode] = useState<boolean>(false);
+  const [notebooks, setNotebooks] = useState<Array<{ id: string; title: string; createdAt: string }>>([]);
+  const [selectedNotebookId, setSelectedNotebookId] = useState<string>('');
+  const [uploading, setUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   // Toast 훅 사용
   const { toasts, showToast, removeToast } = useToast();
+
+  // 노트북 불러오기
+  const loadNotebooks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/rag/notebooks');
+      const data = await res.json();
+      setNotebooks(data.notebooks || []);
+      if (!selectedNotebookId && data.notebooks?.length) {
+        setSelectedNotebookId(data.notebooks[0].id);
+      }
+    } catch (e) {
+      // 무시: 초기 로드 실패해도 채팅 기능은 동작
+    }
+  }, [selectedNotebookId]);
 
   // 새 세션 생성
   const createNewSession = () => {
@@ -99,9 +119,14 @@ export default function Home() {
       const savedSessions = localStorage.getItem('sessions');
       const savedCurrentSessionId = localStorage.getItem('currentSessionId');
       const savedDarkMode = localStorage.getItem('darkMode');
+      const savedRagMode = localStorage.getItem('ragMode');
+      const savedNotebookId = localStorage.getItem('selectedNotebookId');
       
       if (savedDarkMode) {
         setDarkMode(JSON.parse(savedDarkMode));
+      }
+      if (savedRagMode) {
+        setRagMode(JSON.parse(savedRagMode));
       }
       
       if (savedSessions) {
@@ -123,12 +148,15 @@ export default function Home() {
       } else {
         createNewSession();
       }
+
+      await loadNotebooks();
+      if (savedNotebookId) setSelectedNotebookId(savedNotebookId);
       
       setIsSessionLoading(false);
     };
     
     loadSessions();
-  }, []);
+  }, [loadNotebooks]);
 
   // 메시지 변경시 현재 세션 업데이트
   useEffect(() => {
@@ -160,6 +188,14 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
+
+  // RAG 설정 저장
+  useEffect(() => {
+    localStorage.setItem('ragMode', JSON.stringify(ragMode));
+  }, [ragMode]);
+  useEffect(() => {
+    if (selectedNotebookId) localStorage.setItem('selectedNotebookId', selectedNotebookId);
+  }, [selectedNotebookId]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -202,17 +238,24 @@ export default function Home() {
     setInputValue('');
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: question,
-          conversationId: currentSessionId,
-          messages: [...messages, userMessage]  // 현재까지의 모든 메시지 전송
-        })
-      });
+      const response = await (async () => {
+        if (ragMode && selectedNotebookId) {
+          return fetch('/api/rag/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notebookId: selectedNotebookId, question, topK: 5 })
+          });
+        }
+        return fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: question,
+            conversationId: currentSessionId,
+            messages: [...messages, userMessage]
+          })
+        });
+      })();
 
       const data = await response.json();
       
@@ -223,7 +266,7 @@ export default function Home() {
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         type: 'bot',
-        content: data.response,
+        content: data.response ?? data.answer,
         timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         suggestions: data.suggestions,
         cached: data.cached
@@ -292,6 +335,47 @@ export default function Home() {
       setSessions(updatedSessions);
       localStorage.setItem('sessions', JSON.stringify(updatedSessions));
       showToast('대화가 초기화되었습니다', 'info');
+    }
+  };
+
+  // 업로드 핸들러
+  const triggerUpload = () => fileInputRef.current?.click();
+  const handleFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (!selectedNotebookId) {
+      showToast('노트북을 먼저 선택하거나 생성하세요.', 'error');
+      return;
+    }
+    try {
+      setUploading(true);
+      const form = new FormData();
+      form.append('notebookId', selectedNotebookId);
+      Array.from(files).forEach(f => form.append('files', f));
+      const res = await fetch('/api/rag/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '업로드 실패');
+      showToast(`업로드 완료: ${data.results?.length || 0}개 파일`, 'success');
+    } catch (e: any) {
+      showToast(e?.message || '업로드 실패', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const createDefaultNotebook = async () => {
+    try {
+      const res = await fetch('/api/rag/notebooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: '내 노트북' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '노트북 생성 실패');
+      setNotebooks(prev => [data, ...prev]);
+      setSelectedNotebookId(data.id);
+      showToast('노트북이 생성되었습니다.', 'success');
+    } catch (e: any) {
+      showToast(e?.message || '노트북 생성 실패', 'error');
     }
   };
 
@@ -522,7 +606,35 @@ export default function Home() {
               <div className="mb-4">
                 <QuickButtons onQuestionClick={handleQuickQuestion} disabled={isLoading} />
               </div>
-              
+
+              {/* RAG 컨트롤 바 */}
+              <div className="flex items-center flex-wrap gap-3 mb-3">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={ragMode} onChange={(e) => setRagMode(e.target.checked)} />
+                  근거 기반(RAG)
+                </label>
+                {ragMode && (
+                  <>
+                    <select
+                      value={selectedNotebookId}
+                      onChange={(e) => setSelectedNotebookId(e.target.value)}
+                      className="bg-gray-100 dark:bg-gray-700 rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="">노트북 선택</option>
+                      {notebooks.map(nb => (
+                        <option key={nb.id} value={nb.id}>{nb.title}</option>
+                      ))}
+                    </select>
+                    <button onClick={loadNotebooks} className="px-3 py-2 text-sm rounded-md bg-gray-100 dark:bg-gray-700">새로고침</button>
+                    <button onClick={createDefaultNotebook} className="px-3 py-2 text-sm rounded-md bg-gray-100 dark:bg-gray-700">노트북 생성</button>
+                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
+                    <button onClick={triggerUpload} disabled={!selectedNotebookId || uploading} className="px-3 py-2 text-sm rounded-md bg-blue-600 text-white disabled:opacity-50">
+                      {uploading ? '업로드 중...' : '파일 업로드'}
+                    </button>
+                  </>
+                )}
+              </div>
+
               <div className="flex items-center space-x-3">
                 <input
                   ref={inputRef}

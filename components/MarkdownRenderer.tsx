@@ -7,23 +7,11 @@ interface MarkdownRendererProps {
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
-  // 디버깅: 받은 content 확인
-  console.log('MarkdownRenderer received:', content.substring(0, 200));
-  
-  // 이스케이프된 마크다운 복원
-  const cleanContent = content
-    .replace(/\\\*/g, '*')           // \* -> *
-    .replace(/\\#/g, '#')            // \# -> #
-    .replace(/\\_/g, '_')            // \_ -> _
-    .replace(/\\~/g, '~')            // \~ -> ~
-    .replace(/\\`/g, '`')            // \` -> `
-    .replace(/\\\[/g, '[')           // \[ -> [
-    .replace(/\\\]/g, ']')           // \] -> ]
-    .replace(/\\\(/g, '(')           // \( -> (
-    .replace(/\\\)/g, ')');          // \) -> )
+  // 마크다운 내용을 그대로 사용 (불필요한 이스케이프 제거 방지)
+  const cleanContent = content;
   
   return (
-    <div className="markdown-content prose prose-sm dark:prose-invert max-w-none">
+    <div className="markdown-content max-w-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -35,17 +23,29 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
           // 단락
           p: ({ children }) => <p className="mb-3 leading-relaxed text-gray-800 dark:text-gray-200">{children}</p>,
           
-          // 강조 - 여기가 문제일 수 있음
-          strong: ({ children }) => <strong className="font-bold text-purple-700 dark:text-purple-400">{children}</strong>,
+          // 강조 - 더 잘 보이도록 스타일 강화
+          strong: ({ children }) => <strong className="font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-1 rounded">{children}</strong>,
           em: ({ children }) => <em className="italic text-gray-700 dark:text-gray-300">{children}</em>,
           
-          // 리스트
+          // 리스트 - counter-reset 문제 해결
           ul: ({ children }) => <ul className="list-disc pl-6 mb-3 space-y-1 text-gray-800 dark:text-gray-200">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-6 mb-3 space-y-1 text-gray-800 dark:text-gray-200">{children}</ol>,
-          li: ({ children }) => <li className="mb-1 text-gray-800 dark:text-gray-200">{children}</li>,
+          ol: ({ children, start }) => (
+            <ol 
+              className="pl-6 mb-3 space-y-1 text-gray-800 dark:text-gray-200" 
+              style={{ listStyleType: 'decimal', counterReset: 'list-counter' }}
+              start={start}
+            >
+              {children}
+            </ol>
+          ),
+          li: ({ children }) => (
+            <li className="mb-1 text-gray-800 dark:text-gray-200">
+              {children}
+            </li>
+          ),
           
           // 코드
-          code: ({ className, children, ...props }) => {
+          code: ({ className, children }) => {
             const match = /language-(\w+)/.exec(className || '');
             const isInline = !match;
             

@@ -44,13 +44,13 @@ export default function Home() {
       if (!selectedNotebookId && data.notebooks?.length) {
         setSelectedNotebookId(data.notebooks[0].id);
       }
-    } catch (e) {
+    } catch {
       // 무시: 초기 로드 실패해도 채팅 기능은 동작
     }
   }, [selectedNotebookId]);
 
   // 새 세션 생성
-  const createNewSession = () => {
+  const createNewSession = useCallback(() => {
     const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newSession: Session = {
       id: newSessionId,
@@ -60,18 +60,20 @@ export default function Home() {
       lastMessageAt: new Date().toISOString()
     };
     
-    setSessions(prev => [newSession, ...prev]);
+    setSessions(prev => {
+      const next = [newSession, ...prev];
+      localStorage.setItem('sessions', JSON.stringify(next));
+      return next;
+    });
     setCurrentSessionId(newSessionId);
     setMessages([]);
     
     // 로컬 스토리지에 저장
-    const updatedSessions = [newSession, ...sessions];
-    localStorage.setItem('sessions', JSON.stringify(updatedSessions));
     localStorage.setItem('currentSessionId', newSessionId);
     
     showToast('새 대화를 시작합니다', 'success');
     return newSessionId;
-  };
+  }, [showToast]);
 
   // 세션 전환
   const switchSession = (sessionId: string) => {
@@ -110,35 +112,28 @@ export default function Home() {
 
   // 로컬 스토리지에서 세션 불러오기
   useEffect(() => {
-    const loadSessions = async () => {
+    const init = async () => {
       setIsSessionLoading(true);
-      
+
       // 약간의 지연으로 로딩 효과 보여주기
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       const savedSessions = localStorage.getItem('sessions');
       const savedCurrentSessionId = localStorage.getItem('currentSessionId');
       const savedDarkMode = localStorage.getItem('darkMode');
       const savedRagMode = localStorage.getItem('ragMode');
       const savedNotebookId = localStorage.getItem('selectedNotebookId');
-      
-      if (savedDarkMode) {
-        setDarkMode(JSON.parse(savedDarkMode));
-      }
-      if (savedRagMode) {
-        setRagMode(JSON.parse(savedRagMode));
-      }
-      
+
+      if (savedDarkMode) setDarkMode(JSON.parse(savedDarkMode));
+      if (savedRagMode) setRagMode(JSON.parse(savedRagMode));
+
       if (savedSessions) {
         const parsedSessions = JSON.parse(savedSessions);
         setSessions(parsedSessions);
-        
         if (savedCurrentSessionId && parsedSessions.find((s: Session) => s.id === savedCurrentSessionId)) {
           setCurrentSessionId(savedCurrentSessionId);
           const currentSession = parsedSessions.find((s: Session) => s.id === savedCurrentSessionId);
-          if (currentSession) {
-            setMessages(currentSession.messages);
-          }
+          if (currentSession) setMessages(currentSession.messages);
         } else if (parsedSessions.length > 0) {
           setCurrentSessionId(parsedSessions[0].id);
           setMessages(parsedSessions[0].messages);
@@ -149,38 +144,44 @@ export default function Home() {
         createNewSession();
       }
 
-      await loadNotebooks();
+      // 노트북 목록 1회 불러오기 (초기화 때만)
+      try {
+        const res = await fetch('/api/rag/notebooks');
+        const data = await res.json();
+        setNotebooks(data.notebooks || []);
+        if (!savedNotebookId && data.notebooks?.length) {
+          setSelectedNotebookId(data.notebooks[0].id);
+        }
+      } catch {
+        // 초기 로드 실패해도 채팅 기능은 동작
+      }
       if (savedNotebookId) setSelectedNotebookId(savedNotebookId);
-      
+
       setIsSessionLoading(false);
     };
-    
-    loadSessions();
-  }, [loadNotebooks]);
+
+    init();
+  }, [createNewSession]);
 
   // 메시지 변경시 현재 세션 업데이트
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
-      setSessions(prev => prev.map(session => 
-        session.id === currentSessionId 
-          ? { 
-              ...session, 
-              messages, 
-              lastMessageAt: new Date().toISOString(),
-              title: session.title === '새 대화' && messages.length > 0 
-                ? messages[0].content.slice(0, 30) + (messages[0].content.length > 30 ? '...' : '')
-                : session.title
-            }
-          : session
-      ));
-      
-      // 로컬 스토리지 업데이트
-      const updatedSessions = sessions.map(session => 
-        session.id === currentSessionId 
-          ? { ...session, messages, lastMessageAt: new Date().toISOString() }
-          : session
-      );
-      localStorage.setItem('sessions', JSON.stringify(updatedSessions));
+      setSessions(prev => {
+        const next = prev.map(session => 
+          session.id === currentSessionId 
+            ? { 
+                ...session, 
+                messages, 
+                lastMessageAt: new Date().toISOString(),
+                title: session.title === '새 대화' && messages.length > 0 
+                  ? messages[0].content.slice(0, 30) + (messages[0].content.length > 30 ? '...' : '')
+                  : session.title
+              }
+            : session
+        );
+        localStorage.setItem('sessions', JSON.stringify(next));
+        return next;
+      });
     }
   }, [messages, currentSessionId]);
 
@@ -476,7 +477,6 @@ export default function Home() {
       {/* 헤더 */}
       <ChatHeader
         darkMode={darkMode}
-        showSidebar={showSidebar}
         onToggleSidebar={() => setShowSidebar(!showSidebar)}
         onToggleDarkMode={() => setDarkMode(!darkMode)}
         onDownload={downloadChat}
@@ -531,11 +531,15 @@ export default function Home() {
                             </span>
                           </div>
                           {message.type === 'bot' ? (
-                            <TypingEffect 
-                              content={message.content}
-                              isTyping={index === messages.length - 1 && !message.cached}
-                              speed={20}
-                            />
+                            (index === messages.length - 1 && !message.cached) ? (
+                              <TypingEffect 
+                                content={message.content}
+                                isTyping
+                                speed={20}
+                              />
+                            ) : (
+                              <MarkdownRenderer content={message.content} />
+                            )
                           ) : (
                             <p className="whitespace-pre-wrap leading-relaxed select-text cursor-text">{message.content}</p>
                           )}
@@ -648,7 +652,7 @@ export default function Home() {
                     }
                   }}
                   placeholder="질문을 입력하세요..."
-                  className="w-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
+                  className="w-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
                 <button
                   onClick={handleSend}

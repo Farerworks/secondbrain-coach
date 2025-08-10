@@ -3,7 +3,6 @@ import { Brain, MessageSquare, Moon, Sun, Download, RefreshCw, X } from 'lucide-
 
 interface ChatHeaderProps {
   darkMode: boolean;
-  showSidebar: boolean;
   onToggleSidebar: () => void;
   onToggleDarkMode: () => void;
   onDownload: () => void;
@@ -13,7 +12,6 @@ interface ChatHeaderProps {
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   darkMode,
-  showSidebar,
   onToggleSidebar,
   onToggleDarkMode,
   onDownload,

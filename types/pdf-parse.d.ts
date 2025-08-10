@@ -10,3 +10,7 @@ declare module 'pdf-parse' {
   function pdfParse(dataBuffer: Buffer): Promise<PDFData>;
   export default pdfParse;
 }
+
+
+
+

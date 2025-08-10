@@ -98,7 +98,7 @@ function formatDrGardnerContent(item: any): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, conversationId, messages = [] } = await req.json();
+    const { message, messages = [] } = await req.json();
 
     // 1. 검색
     const searchResults = await searchKnowledge(message);
@@ -178,11 +178,11 @@ ${message}
 `;
 
       // AI 호출
-      const aiResponse = await fetch('http://localhost:1234/v1/chat/completions', {
+      const aiResponse = await fetch(process.env.LMSTUDIO_URL || 'http://127.0.0.1:1234/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'google/gemma-3n-e4b',
+          model: process.env.LMSTUDIO_MODEL || 'google/gemma-3n-e4b',
           messages: [
             { role: 'system', content: '당신은 친절하고 실용적인 Second Brain 전문가입니다.' },
             { role: 'user', content: aiPrompt },
@@ -194,7 +194,8 @@ ${message}
 
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
-        let content = aiData.choices[0].message.content;
+        let content = aiData?.choices?.[0]?.message?.content || '';
+        if (!content || content.trim().length < 5) throw new Error('Empty content from LM Studio');
 
         // 스마트한 마무리 처리 - 완전하지 않은 답변 감지 및 보완
         const isIncomplete = (text: string): boolean => {

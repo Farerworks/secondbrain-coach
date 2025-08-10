@@ -115,6 +115,14 @@ lsof -tiTCP:3001 -sTCP:LISTEN | xargs kill -9 2>/dev/null || true
 ```bash
 curl http://127.0.0.1:1234/v1/models
 ```
+- LM Studio 연결 에러(ECONNREFUSED) 시
+  - LM Studio의 Server가 실행 중인지 확인
+  - `.env.local`에 아래 설정 추가(특히 127.0.0.1 권장)
+    ```
+    LMSTUDIO_URL=http://127.0.0.1:1234/v1/chat/completions
+    LMSTUDIO_MODEL=google/gemma-3n-e4b
+    ```
+  - 그래도 빈 응답이면 기본 지식 기반으로 폴백되며, RAG는 업로드/인덱싱 후 사용
 
 ## 배포/버전 관리
 
@@ -139,6 +147,14 @@ curl http://127.0.0.1:1234/v1/models
 - **브라우저 호환성 개선**:
   - Safari 성능 최적화 (input/textarea transition 제거)
   - 타이핑 지연 문제 해결
+
+### 2025-08-10: 버그 수정 및 안정화(추가)
+- RAG 초기 호출 최적화: 초기 렌더 시 `/api/rag/notebooks` 1회만 호출되도록 수정(`app/page.tsx`, `app/rag/page.tsx`)
+- 토스트 훅 안정화: `useToast`의 콜백을 `useCallback`으로 고정해 불필요 리렌더/효과 재실행 방지
+- LM Studio 연결성 개선: 기본 주소를 `127.0.0.1`로 강제 사용(`api/chat`, `api/rag/ask`), 빈 응답 시 자동 폴백 처리
+- RAG 빈 컨텍스트 안내: 업로드/인덱싱이 없을 때 친절한 안내 메시지 반환(`api/rag/ask`)
+- 봇 메시지 표시 개선: 타이핑 완료 후에는 `MarkdownRenderer`로 마크다운 렌더링(`app/page.tsx`)
+- 경고 제거: `ChatHeader` 미사용 prop 제거, `ChatMessage` 미사용 import 정리 → 빌드 경고 0
 
 ### 이전 업데이트
 - feat: RAG 통합 및 업로드 UI 추가

@@ -16,3 +16,7 @@ export async function POST(req: NextRequest) {
   const meta = await createNotebook(title);
   return NextResponse.json(meta);
 }
+
+
+
+

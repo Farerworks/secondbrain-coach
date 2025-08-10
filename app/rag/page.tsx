@@ -46,8 +46,10 @@ export default function RAGPage() {
   }, [selectedNotebookId]);
 
   useEffect(() => {
+    // 초기 진입 시 1회만 호출
     loadNotebooks();
-  }, [loadNotebooks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCreateNotebook = async () => {
     try {

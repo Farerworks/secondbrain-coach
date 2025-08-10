@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { MarkdownRenderer } from './MarkdownRenderer';
 import { TypingEffect } from './TypingEffect';
 
 interface ChatMessageProps {

@@ -144,6 +144,7 @@ html {
 @supports (-webkit-appearance: none) {
   input, textarea {
     -webkit-transform: translateZ(0);
+    transform: translateZ(0);
     -webkit-font-smoothing: antialiased;
     transition: none !important;
   }

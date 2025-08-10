@@ -28,9 +28,9 @@ function formatMarkdownWithBoldAndParagraph(text: string): string {
   // 숫자 + 단위 강조 (3개월, 주 3회, 매일 30분 등)
   formatted = formatted.replace(/(\d+)(개월|개|회|분|시간|일|주|년)/g, '**$1$2**');
   
-  // 추가 키워드들 강조
+  // 추가 키워드들 강조 (대소문자 구분 없이)
   additionalKeywords.forEach(keyword => {
-    const regex = new RegExp(`\\b(${keyword})\\b`, 'g');
+    const regex = new RegExp(`\\b(${keyword})\\b`, 'gi');
     formatted = formatted.replace(regex, '**$1**');
   });
 

@@ -1,10 +1,10 @@
 # SecondBrain Coach
 
-Second Brain 시스템(PARA, CODE 방법론)을 학습하고, 업로드한 자료와 닥터가드너 콘텐츠를 근거로 답하는 로컬 AI 코치입니다.
+Second Brain 시스템(PARA, CODE 방법론)을 학습하고, 업로드한 자료와 내장 샘플 지식을 근거로 답하는 로컬 AI 코치입니다.
 
 ## 주요 기능
 
-- 💬 기본 지식(Fuse.js) 기반 Q&A (닥터가드너 자료 포함)
+- 💬 기본 지식(Fuse.js) 기반 Q&A (내장 샘플 지식 포함)
 - 📚 RAG 기반 근거 인용 답변(로컬 임베딩/로컬 LLM)
 - 📤 파일 업로드(txt/md/pdf) → 청킹 → 임베딩 → 벡터 검색
 - 🗂 노트북 단위로 자료 관리(Notebook)
@@ -80,16 +80,16 @@ curl -X POST http://localhost:3001/api/rag/ask \
   -H "Content-Type: application/json" \
   -d '{"notebookId":"<노트북_ID>","question":"핵심 요약","topK":5}'
 ```
-- POST `/api/rag/ingest-gardner` 닥터가드너 JSON 일괄 인덱싱(옵션)
+- POST `/api/rag/ingest-gardner` 내장 지식 JSON 일괄 인덱싱(옵션)
 ```bash
 curl -X POST http://localhost:3001/api/rag/ingest-gardner \
   -H "Content-Type: application/json" \
   -d '{"notebookId":"<노트북_ID>"}'
 ```
 
-## 닥터가드너 데이터는 어디에?
+## 내장 지식 데이터는 어디에?
 
-- 폴더: `data/dr-gardner/`
+- 폴더: `data/dr-gardner/` — 공개 레포에는 스키마를 보여주는 최소 샘플만 포함(실제 지식 데이터는 비공개)
   - `core-concepts.json`, `para-system.json`, `code-method.json`, `notion-setup.json`, `automation.json`, `troubleshooting.json`, (필요 시 `index.json`)
 - 기본 Q&A 경로: `lib/search.ts`가 위 JSON들을 정적 import → `flattenDrGardnerData()`로 평탄화 → Fuse 인덱스에 통합
 - RAG 포함(선택): `/api/rag/ingest-gardner` 호출 시 동일 JSON을 큰 텍스트로 합쳐 청킹/임베딩하여 RAG 인덱스에 저장 → 근거 인용 포함 응답 가능
@@ -162,7 +162,7 @@ curl http://127.0.0.1:1234/v1/models
   - API: `/api/rag/notebooks`, `/api/rag/upload`, `/api/rag/ask`, `/api/rag/ingest-gardner`
   - UI: 메인 채팅에 RAG 토글/노트북/업로드 통합, `/rag` 업로드 페이지 추가
   - LM Studio 연동(.env.local)
-  - 닥터가드너 JSON의 RAG 인덱싱 지원
+  - 내장 지식 JSON의 RAG 인덱싱 지원
 
 ---
 
